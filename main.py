@@ -1,6 +1,5 @@
 import warnings
 
-
 from aeon.datasets import load_arrow_head, load_basic_motions
 
 from sklearn.ensemble import RandomForestClassifier
