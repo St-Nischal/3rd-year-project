@@ -29,14 +29,28 @@ browse_button.pack(pady=10)
 label = tk.Label(root, text="No file selected")
 label.pack(pady=5)
 
-# creating a grid layout for buttons
-buttonFrame = tk.Frame(root)
-buttonFrame.columnconfigure(0, weight=1)
-buttonFrame.columnconfigure(1, weight=1)
-buttonFrame.columnconfigure(2, weight=1)
 
-btn1 = tk.Button(buttonFrame, text="1", font=("Arial", 18, "bold"))
-btn1.grid(row=0, column=0, sticky=tk.W+tk.E)
+def show():
+    label.config(text=clicked.get())
 
+# Dropdown menu options
+options = [
+    "Random Forest",
+    "Rocket Classifier",
+    "HIVECOTEV2"
+]
+
+# datatype of menu text
+clicked = tk.StringVar()
+
+# initial menu text
+clicked.set("Monday")
+
+# Create Dropdown menu
+drop = tk.OptionMenu(root, clicked, *options)
+drop.pack()
+
+# Create Label
+label = tk.Label( root , text = " " )
 
 root.mainloop()
