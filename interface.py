@@ -13,6 +13,7 @@ from aeon.classification.convolution_based import RocketClassifier
 from aeon.classification.hybrid import HIVECOTEV2
 from aeon.classification.distance_based import KNeighborsTimeSeriesClassifier
 from aeon.classification.feature_based import Catch22Classifier, FreshPRINCEClassifier
+from aeon.classification.deep_learning import CNNClassifier
 from aeon.datasets import load_from_tsfile
 from aeon.benchmarking import experiments
 from sklearn.ensemble import RandomForestClassifier
@@ -111,6 +112,15 @@ def train_and_test():
                 f1 = f1_score(test_labels, y_predict, average='macro')
                 precision = precision_score(test_labels, y_predict, average='macro')
 
+            elif classifier_name == "CNN":
+                cnn = CNNClassifier()
+                cnn.fit(train_data, train_labels)
+                y_predict = cnn.predict(test_data)
+                accuracy = accuracy_score(test_labels, y_predict)
+                balanced_accuracy = balanced_accuracy_score(test_labels, y_predict)
+                f1 = f1_score(test_labels, y_predict, average='macro')
+                precision = precision_score(test_labels, y_predict, average='macro')
+
             elif classifier_name == "Elastic Ensemble":
                 knn = KNeighborsTimeSeriesClassifier(distance="msm", n_neighbors=3, weights="distance")
                 knn.fit(train_data, train_labels)
@@ -129,7 +139,7 @@ def train_and_test():
                 accuracy = accuracy_score(test_labels, fp_preds)
                 balanced_accuracy = balanced_accuracy_score(test_labels, fp_preds)
                 f1 = f1_score(test_labels, fp_preds, average='macro')
-                precision = precision_score(test_labels, y_predict, average='macro')
+                precision = precision_score(test_labels, fp_preds, average='macro')
 
             elif classifier_name == "Custom" and custom_classifier_filename:
                 custom_module = load_module_from_file("custom_classifier", custom_classifier_filename)
@@ -139,7 +149,7 @@ def train_and_test():
                 accuracy = accuracy_score(test_labels, custom_preds)
                 balanced_accuracy = balanced_accuracy_score(test_labels, custom_preds)
                 f1 = f1_score(test_labels, custom_preds, average='macro')
-                precision = precision_score(test_labels, y_predict, average='macro')
+                precision = precision_score(test_labels, custom_preds, average='macro')
 
             if accuracy is not None and f1 is not None and precision is not None:
                 # Inserting accuracy, precision, and F1 score into the table
@@ -260,7 +270,7 @@ custom_classifier_button = tk.Button(scrollable_frame, text="Browse", command=su
 custom_classifier_button.grid(row=2, column=2)
 
 # Classifier selection listbox
-classifiers = ["Random Forest", "Rocket", "Hivecotev2", "Elastic Ensemble", "Fresh Prince", "Custom"]
+classifiers = ["Random Forest", "Rocket", "Hivecotev2", "Elastic Ensemble", "Fresh Prince","CNN", "Custom"]
 classifiers_listbox = tk.Listbox(scrollable_frame, selectmode=tk.MULTIPLE, height=len(classifiers))
 for classifier in classifiers:
     classifiers_listbox.insert(tk.END, classifier)
