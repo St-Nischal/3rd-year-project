@@ -7,33 +7,48 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import importlib.util
+import seaborn as sns
 import tensorflow as tf
 
 from aeon.classification.convolution_based import RocketClassifier
 from aeon.classification.hybrid import HIVECOTEV2
 from aeon.classification.distance_based import KNeighborsTimeSeriesClassifier
 from aeon.classification.feature_based import Catch22Classifier, FreshPRINCEClassifier
+from aeon.transformations.collection.feature_based import Catch22
 from aeon.classification.deep_learning import CNNClassifier
 from aeon.classification.dictionary_based import ContractableBOSS
 from aeon.classification.interval_based import TimeSeriesForestClassifier
 from aeon.datasets import load_from_tsfile
-from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, precision_score, recall_score
+from aeon.benchmarking import experiments
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, precision_score, confusion_matrix
 
 warnings.filterwarnings("ignore")
 
 
-class CustomCNNClassifier(CNNClassifier):
-    def _fit(self, X, y):
-        # Override the _fit method to set the correct file path for ModelCheckpoint
-        self.checkpoint_filepath = "checkpoint.weights.h5"  # Use the correct extension
-        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath=self.checkpoint_filepath,
-            save_weights_only=True,
-            monitor='val_accuracy',
-            mode='max',
-            save_best_only=True)
-        self.callbacks = [checkpoint_callback]
-        super()._fit(X, y)
+def validate_inputs():
+    if not train_data_entry.get():
+        update_output("Error: Please select a training data file.")
+        return False
+    if not train_data_entry.get().endswith(".ts"):
+        update_output("Error: Training data file must end with '.ts'.")
+        return False
+    if not test_data_entry.get():
+        update_output("Error: Please select a testing data file.")
+        return False
+    if not test_data_entry.get().endswith(".ts"):
+        update_output("Error: Testing data file must end with '.ts'.")
+        return False
+    if not num_runs_entry.get().isdigit() or int(num_runs_entry.get()) <= 0:
+        update_output("Error: Number of runs must be a positive integer greater than 0.")
+        return False
+    if custom_classifier_entry.get() and not custom_classifier_entry.get().endswith(".py"):
+        update_output("Error: Custom classifier file must end with '.py'.")
+        return False
+    if len(classifiers_listbox.curselection()) == 0:
+        update_output("Error: Please select at least one classifier.")
+        return False
+    return True
 
 
 # Function to update the text widget with classifier output
@@ -42,17 +57,20 @@ def update_output(text):
     output_text.insert(tk.END, text + "\n")
     output_text.config(state=tk.DISABLED)
 
+
 # Function to handle file submission for training data
 def submit_train_data():
     train_filename = filedialog.askopenfilename(title="Select Training Data File")
     train_data_entry.delete(0, tk.END)
     train_data_entry.insert(0, train_filename)
 
+
 # Function to handle file submission for testing data
 def submit_test_data():
     test_filename = filedialog.askopenfilename(title="Select Testing Data File")
     test_data_entry.delete(0, tk.END)
     test_data_entry.insert(0, test_filename)
+
 
 # Function to dynamically load a module from a file path
 def load_module_from_file(module_name, file_path):
@@ -61,207 +79,330 @@ def load_module_from_file(module_name, file_path):
     spec.loader.exec_module(module)
     return module
 
+
 # Function to handle file submission for custom classifier
 def submit_custom_classifier():
     custom_classifier_filename = filedialog.askopenfilename(title="Select Custom Classifier File")
     custom_classifier_entry.delete(0, tk.END)
     custom_classifier_entry.insert(0, custom_classifier_filename)
 
-def validate_inputs():
-    if not train_data_entry.get():
-        update_output("Error: Please select a training data file.")
-        return False
-    if not test_data_entry.get():
-        update_output("Error: Please select a testing data file.")
-        return False
-    if not num_runs_entry.get().isdigit():
-        update_output("Error: Number of runs must be a positive integer.")
-        return False
-    return True
 
-# Function to train and test selected classifiers
 def train_and_test():
     if not validate_inputs():
         return
-
     train_filename = train_data_entry.get()
     test_filename = test_data_entry.get()
     selected_classifiers = classifiers_listbox.curselection()
-    num_runs = int(num_runs_entry.get())
+    num_runs = int(num_runs_entry.get())  # Get the number of runs from the entry field
+    custom_classifier_filename = custom_classifier_entry.get()
 
-    if custom_classifier_entry.get():
-        custom_classifier_path = custom_classifier_entry.get()
-        custom_classifier_module = load_module_from_file("custom_classifier", custom_classifier_path)
-        CustomClassifier = getattr(custom_classifier_module, 'CustomClassifier', None)
-        if CustomClassifier:
-            classifiers.append(CustomClassifier)
-
-    try:
-        train_data, train_labels = load_from_tsfile(train_filename)
-        test_data, test_labels = load_from_tsfile(test_filename)
-    except Exception as e:
-        update_output(f"Error loading data: {e}")
-        return
-
-    metrics = {
-        'accuracy': [],
-        'balanced_accuracy': [],
-        'f1': [],
-        'precision': [],
-        'recall': []
-    }
+    # Creating a table to display accuracy results
+    tree.delete(*tree.get_children())  # Clear the table
+    avg_accuracy = {}
+    avg_balanced_accuracy = {}
+    avg_f1_score = {}
+    avg_precision = {}
 
     for run in range(num_runs):
-        update_output(f"Run {run + 1}/{num_runs}")
+        train_data, train_labels = load_from_tsfile(train_filename)
+        test_data, test_labels = load_from_tsfile(test_filename)
 
-        for idx in selected_classifiers:
-            classifier_name = classifiers[idx]
-            update_output(f"Training classifier: {classifier_name}")
+        # Taking care of data error where 1d data is shown as 3d
+        train_data = train_data.reshape(train_data.shape[0], -1)
+        test_data = test_data.reshape(test_data.shape[0], -1)
 
-            classifier = globals()[classifier_name]()
-            classifier.fit(train_data, train_labels)
-            y_pred = classifier.predict(test_data)
+        # Resampling the training and testing data
+        train_data, train_labels, test_data, test_labels = experiments.stratified_resample(train_data, train_labels,
+                                                                                           test_data, test_labels, run)
+        for index in selected_classifiers:
+            classifier_name = classifiers[index]
+            accuracy = None
+            balanced_accuracy = None
+            f1 = None
+            precision = None
 
-            accuracy = accuracy_score(test_labels, y_pred)
-            balanced_acc = balanced_accuracy_score(test_labels, y_pred)
-            f1 = f1_score(test_labels, y_pred, average='macro')
-            precision = precision_score(test_labels, y_pred, average='macro')
-            recall = recall_score(test_labels, y_pred, average='macro')
+            # Calling classifiers from AEON
 
-            metrics['accuracy'].append(accuracy)
-            metrics['balanced_accuracy'].append(balanced_acc)
-            metrics['f1'].append(f1)
-            metrics['precision'].append(precision)
-            metrics['recall'].append(recall)
+            if classifier_name == "Random Forest":
+                random_forest = RandomForestClassifier(n_estimators=100)
+                random_forest.fit(train_data, train_labels)
+                y_predict = random_forest.predict(test_data)
+                accuracy = accuracy_score(test_labels, y_predict)
+                balanced_accuracy = balanced_accuracy_score(test_labels, y_predict)
+                f1 = f1_score(test_labels, y_predict, average='macro')
+                precision = precision_score(test_labels, y_predict, average='macro')
 
-            tree.insert("", tk.END, values=(run + 1, classifier_name, accuracy, balanced_acc, f1, precision, recall))
+            elif classifier_name == "Rocket":
+                rocket_classifier = RocketClassifier(num_kernels=2000)
+                rocket_classifier.fit(train_data, train_labels)
+                y_predict = rocket_classifier.predict(test_data)
+                accuracy = accuracy_score(test_labels, y_predict)
+                balanced_accuracy = balanced_accuracy_score(test_labels, y_predict)
+                f1 = f1_score(test_labels, y_predict, average='macro')
+                precision = precision_score(test_labels, y_predict, average='macro')
 
-            update_output(f"Results for {classifier_name}: Accuracy={accuracy}, Balanced Accuracy={balanced_acc}, F1 Score={f1}, Precision={precision}, Recall={recall}")
+            elif classifier_name == "Hivecotev2":
+                hc_2 = HIVECOTEV2(time_limit_in_minutes=0.2)
+                hc_2.fit(train_data, train_labels)
+                y_predict = hc_2.predict(test_data)
+                accuracy = accuracy_score(test_labels, y_predict)
+                balanced_accuracy = balanced_accuracy_score(test_labels, y_predict)
+                f1 = f1_score(test_labels, y_predict, average='macro')
+                precision = precision_score(test_labels, y_predict, average='macro')
 
-            if classifier_name == "CNNClassifier":
-                model = classifier.model
-                fig, ax = plt.subplots()
-                ax.plot(model.history.history['accuracy'], label='Accuracy')
-                ax.plot(model.history.history['val_accuracy'], label='Val Accuracy')
-                ax.legend(loc='lower right')
-                ax.set_title(f'Accuracy - {classifier_name}')
-                canvas = FigureCanvasTkAgg(fig, master=graph_frame)
-                canvas.draw()
-                canvas.get_tk_widget().grid(row=0, column=0, padx=10, pady=10)
+            elif classifier_name == "CNN":
+                cnn = CNNClassifier()
+                cnn.fit(train_data, train_labels)
+                y_predict = cnn.predict(test_data)
+                accuracy = accuracy_score(test_labels, y_predict)
+                balanced_accuracy = balanced_accuracy_score(test_labels, y_predict)
+                f1 = f1_score(test_labels, y_predict, average='macro')
+                precision = precision_score(test_labels, y_predict, average='macro')
 
-    update_output("Training and testing completed.")
-    plot_metrics(metrics, selected_classifiers)
+            elif classifier_name == "Elastic Ensemble":
+                knn = KNeighborsTimeSeriesClassifier(distance="msm", n_neighbors=3, weights="distance")
+                knn.fit(train_data, train_labels)
+                knn_prediction = knn.predict(test_data)
+                accuracy = accuracy_score(test_labels, knn_prediction)
+                balanced_accuracy = balanced_accuracy_score(test_labels, knn_prediction)
+                f1 = f1_score(test_labels, knn_prediction, average='macro')
+                precision = precision_score(test_labels, knn_prediction, average='macro')
 
-def plot_metrics(metrics, selected_classifiers):
-    fig, axs = plt.subplots(3, 2, figsize=(15, 10))
-    metric_names = ['accuracy', 'balanced_accuracy', 'f1', 'precision', 'recall']
-    axs = axs.flatten()
+            elif classifier_name == "Fresh Prince":
+                c22cls = Catch22Classifier()
+                c22cls.fit(train_data, train_labels)
+                fp = FreshPRINCEClassifier()
+                fp.fit(train_data, train_labels)
+                fp_preds = c22cls.predict(test_data)
+                accuracy = accuracy_score(test_labels, fp_preds)
+                balanced_accuracy = balanced_accuracy_score(test_labels, fp_preds)
+                f1 = f1_score(test_labels, fp_preds, average='macro')
+                precision = precision_score(test_labels, fp_preds, average='macro')
 
-    for i, metric in enumerate(metric_names):
-        for idx in selected_classifiers:
-            classifier_name = classifiers[idx]
-            axs[i].plot(range(len(metrics[metric])), metrics[metric], label=classifier_name)
-        axs[i].set_title(metric.capitalize())
-        axs[i].legend(loc='lower right')
+            elif classifier_name == "CBoss":
+                cboss = ContractableBOSS(n_parameter_samples=250, max_ensemble_size=50, random_state=47)
+                cboss.fit(train_data, train_labels)
+                cboss_preds = cboss.predict(test_data)
+                accuracy = accuracy_score(test_labels, cboss_preds)
+                balanced_accuracy = balanced_accuracy_score(test_labels, cboss_preds)
+                f1 = f1_score(test_labels, cboss_preds, average='macro')
+                precision = precision_score(test_labels, cboss_preds, average='macro')
 
-    fig.tight_layout()
-    canvas = FigureCanvasTkAgg(fig, master=graph_frame)
-    canvas.draw()
-    canvas.get_tk_widget().grid(row=1, column=0, padx=10, pady=10)
+            elif classifier_name == "Time Series Forest":
+                tsf = TimeSeriesForestClassifier(n_estimators=50, random_state=47)
+                tsf.fit(train_data, train_labels)
+                tsf_preds = tsf.predict(test_data)
+                accuracy = accuracy_score(test_labels, tsf_preds)
+                balanced_accuracy = balanced_accuracy_score(test_labels, tsf_preds)
+                f1 = f1_score(test_labels, tsf_preds, average='macro')
+                precision = precision_score(test_labels, tsf_preds, average='macro')
 
-# Create main application window
+            elif classifier_name == "Custom" and custom_classifier_filename:
+                custom_module = load_module_from_file("custom_classifier", custom_classifier_filename)
+                custom_classifier = custom_module.setup()  # Calling the setup function to get the classifier instance
+                custom_classifier.fit(train_data, train_labels)
+                custom_preds = custom_classifier.predict(test_data)
+                accuracy = accuracy_score(test_labels, custom_preds)
+                balanced_accuracy = balanced_accuracy_score(test_labels, custom_preds)
+                f1 = f1_score(test_labels, custom_preds, average='macro')
+                precision = precision_score(test_labels, custom_preds, average='macro')
+
+            if accuracy is not None and f1 is not None and precision is not None:
+                # Inserting accuracy, precision, and F1 score into the table
+                avg_accuracy.setdefault(classifier_name, []).append(accuracy)
+                avg_balanced_accuracy.setdefault(classifier_name, []).append(balanced_accuracy)
+                avg_f1_score.setdefault(classifier_name, []).append(f1)
+                avg_precision.setdefault(classifier_name, []).append(precision)
+                tree.insert("", tk.END, values=(
+                f"Run {run + 1}", classifier_name, f"{accuracy:.2f}", f"{f1:.2f}", f"{precision:.2f}"))
+                if num_runs == 1 and len(selected_classifiers) == 1:
+                    plot_confusion_matrix(test_labels, y_predict, classifier_name)
+
+    # Calculating and displaying average and standard deviation for each classifier
+    for classifier_name, accuracies in avg_accuracy.items():
+        avg_acc = np.mean(accuracies)
+        std_acc = np.std(accuracies)
+        avg_bal_acc = np.mean(avg_balanced_accuracy[classifier_name])
+        std_bal_acc = np.std(avg_balanced_accuracy[classifier_name])
+        avg_f1 = np.mean(avg_f1_score[classifier_name])
+        std_f1 = np.std(avg_f1_score[classifier_name])
+        avg_prec = np.mean(avg_precision[classifier_name])
+        std_prec = np.std(avg_precision[classifier_name])
+        update_output(
+            f"{classifier_name} Classifier: "
+            f"Average Accuracy: {avg_acc:.2f} (Std Dev: {std_acc:.2f}), "
+            f"Average Balanced Accuracy: {avg_bal_acc:.2f} (Std Dev: {std_bal_acc:.2f}), "
+            f"Average F1 Score: {avg_f1:.2f} (Std Dev: {std_f1:.2f}), "
+            f"Average Precision: {avg_prec:.2f} (Std Dev: {std_prec:.2f})"
+        )
+
+    # Plotting the graph
+    plot_graph(avg_accuracy, avg_balanced_accuracy)
+
+def plot_confusion_matrix(test_labels, y_predict, classifier_name):
+    cm = confusion_matrix(test_labels, y_predict)
+    plt.figure(figsize=(10, 7))
+    sns.heatmap(cm, annot=True, fmt="d")
+    plt.title(f'Confusion Matrix for {classifier_name}')
+    plt.ylabel('Actual')
+    plt.xlabel('Predicted')
+    plt.show()
+def plot_graph(avg_accuracy, avg_balanced_accuracy):
+    def plot_graph(avg_accuracy, avg_balanced_accuracy, num_runs):
+        # Clearing the previous graph, when same window used to run again
+        for widget in graph_frame.winfo_children():
+            widget.destroy()
+
+        if num_runs == 1:
+            fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+
+            # Getting a colormap
+            cmap = plt.get_cmap("tab10")
+            classifier_names = list(avg_accuracy.keys())
+            colors = [cmap(i) for i in range(len(classifier_names))]
+
+            # Plotting bar chart for single run accuracy
+            ax1 = axes[0]
+            accuracies = [avg_accuracy[classifier_name][0] for classifier_name in classifier_names]
+            ax1.bar(classifier_names, accuracies, color=colors)
+            ax1.set_title("Accuracy of Classifiers for Single Run")
+            ax1.set_ylabel("Accuracy")
+            ax1.set_xticklabels(classifier_names, rotation=45, ha="right")
+            ax1.grid(True)
+
+            # Plotting bar chart for single run balanced accuracy
+            ax2 = axes[1]
+            bal_accuracies = [avg_balanced_accuracy[classifier_name][0] for classifier_name in classifier_names]
+            ax2.bar(classifier_names, bal_accuracies, color=colors)
+            ax2.set_title("Balanced Accuracy of Classifiers for Single Run")
+            ax2.set_ylabel("Balanced Accuracy")
+            ax2.set_xticklabels(classifier_names, rotation=45, ha="right")
+            ax2.grid(True)
+        else:
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+            # Plotting normal accuracy
+            for classifier_name, accuracies in avg_accuracy.items():
+                ax1.plot(range(1, len(accuracies) + 1), accuracies, label=classifier_name)
+            ax1.set_title("Accuracy of Classifiers Across Runs")
+            ax1.set_xlabel("Run")
+            ax1.set_ylabel("Accuracy")
+            ax1.legend()
+            ax1.grid(True)
+
+            # Plotting balanced accuracy
+            for classifier_name, bal_accuracies in avg_balanced_accuracy.items():
+                ax2.plot(range(1, len(bal_accuracies) + 1), bal_accuracies, label=classifier_name)
+            ax2.set_title("Balanced Accuracy of Classifiers Across Runs")
+            ax2.set_xlabel("Run")
+            ax2.set_ylabel("Balanced Accuracy")
+            ax2.legend()
+            ax2.grid(True)
+
+        fig.tight_layout()
+
+        canvas = FigureCanvasTkAgg(fig, master=graph_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+# Createing main Tkinter window
 root = tk.Tk()
-root.title("Time Series Classification Interface")
+root.title("Multiple Classifier Selection")
+root.geometry("900x1200")
 
-# Create scrollable frame for all widgets
-main_frame = tk.Frame(root)
-main_frame.pack(fill=tk.BOTH, expand=1)
-canvas = tk.Canvas(main_frame)
-scrollbar = tk.Scrollbar(main_frame, orient=tk.VERTICAL, command=canvas.yview)
-scrollable_frame = tk.Frame(canvas)
+# Createing a canvas widget and attach a scrollbar
+canvas = tk.Canvas(root)
+scrollbar = tk.Scrollbar(root, orient="vertical", command=canvas.yview)
+scrollable_frame = ttk.Frame(canvas)
+
 scrollable_frame.bind(
     "<Configure>",
     lambda e: canvas.configure(
         scrollregion=canvas.bbox("all")
     )
 )
+# Adding widgets to the scrollable frame
+
 canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+
 canvas.configure(yscrollcommand=scrollbar.set)
-canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
-scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-# Create frames for different sections
-data_selection_frame = tk.Frame(scrollable_frame)
-data_selection_frame.grid(row=0, column=0, sticky="w")
+scrollbar.pack(side="right", fill="y")
+canvas.pack(side="left", fill="both", expand=True)
 
-classifier_selection_frame = tk.Frame(scrollable_frame)
-classifier_selection_frame.grid(row=1, column=0, sticky="w")
-
-run_control_frame = tk.Frame(scrollable_frame)
-run_control_frame.grid(row=2, column=0, sticky="w")
-
-result_display_frame = tk.Frame(scrollable_frame)
-result_display_frame.grid(row=3, column=0, sticky="w")
-
-# Data selection widgets
-train_data_label = tk.Label(data_selection_frame, text="Select Training Data:")
+# Training data file selection
+train_data_label = tk.Label(scrollable_frame, text="Select Training Data:")
 train_data_label.grid(row=0, column=0)
-train_data_entry = tk.Entry(data_selection_frame, width=50)
+
+train_data_entry = tk.Entry(scrollable_frame, width=50)
 train_data_entry.grid(row=0, column=1)
-train_data_button = tk.Button(data_selection_frame, text="Browse", command=submit_train_data)
+
+train_data_button = tk.Button(scrollable_frame, text="Browse", command=submit_train_data)
 train_data_button.grid(row=0, column=2)
 
-test_data_label = tk.Label(data_selection_frame, text="Select Testing Data:")
+# Testing data file selection
+test_data_label = tk.Label(scrollable_frame, text="Select Testing Data:")
 test_data_label.grid(row=1, column=0)
-test_data_entry = tk.Entry(data_selection_frame, width=50)
+
+test_data_entry = tk.Entry(scrollable_frame, width=50)
 test_data_entry.grid(row=1, column=1)
-test_data_button = tk.Button(data_selection_frame, text="Browse", command=submit_test_data)
+
+test_data_button = tk.Button(scrollable_frame, text="Browse", command=submit_test_data)
 test_data_button.grid(row=1, column=2)
 
-custom_classifier_label = tk.Label(data_selection_frame, text="Select Custom Classifier File:")
+# Custom classifier file selection
+custom_classifier_label = tk.Label(scrollable_frame, text="Select Custom Classifier File:")
 custom_classifier_label.grid(row=2, column=0)
-custom_classifier_entry = tk.Entry(data_selection_frame, width=50)
+
+custom_classifier_entry = tk.Entry(scrollable_frame, width=50)
 custom_classifier_entry.grid(row=2, column=1)
-custom_classifier_button = tk.Button(data_selection_frame, text="Browse", command=submit_custom_classifier)
+
+custom_classifier_button = tk.Button(scrollable_frame, text="Browse", command=submit_custom_classifier)
 custom_classifier_button.grid(row=2, column=2)
 
-# Classifier selection widgets
-classifiers = ["RocketClassifier", "HIVECOTEV2", "KNeighborsTimeSeriesClassifier",
-               "Catch22Classifier", "FreshPRINCEClassifier", "CNNClassifier",
-               "ContractableBOSS", "TimeSeriesForestClassifier"]
-
-classifiers_label = tk.Label(classifier_selection_frame, text="Select Classifiers:")
-classifiers_label.grid(row=0, column=0)
-classifiers_listbox = tk.Listbox(classifier_selection_frame, selectmode=tk.MULTIPLE, height=len(classifiers))
+# Classifier selection listbox
+classifiers = ["Random Forest", "Rocket", "Hivecotev2", "Elastic Ensemble", "Fresh Prince", "CNN", "CBoss",
+               "Time Series Forest", "Custom"]
+classifiers_listbox = tk.Listbox(scrollable_frame, selectmode=tk.MULTIPLE, height=len(classifiers))
 for classifier in classifiers:
     classifiers_listbox.insert(tk.END, classifier)
-classifiers_listbox.grid(row=1, column=0, columnspan=3)
+classifiers_listbox.grid(row=3, column=0, columnspan=3)
 
-# Run control widgets
-num_runs_label = tk.Label(run_control_frame, text="Number of Runs:")
-num_runs_label.grid(row=0, column=0)
-num_runs_entry = tk.Entry(run_control_frame, width=10)
-num_runs_entry.grid(row=0, column=1)
-submit_button = tk.Button(run_control_frame, text="Train and Test", command=train_and_test)
-submit_button.grid(row=0, column=2)
+num_runs_label = tk.Label(scrollable_frame, text="Number of Runs:")
+num_runs_label.grid(row=4, column=0)
 
-progress = ttk.Progressbar(run_control_frame, orient=tk.HORIZONTAL, length=200, mode='determinate')
-progress.grid(row=1, column=0, columnspan=3)
 
-# Result display widgets
-output_text = ScrolledText(result_display_frame, height=10, width=100)
-output_text.grid(row=0, column=0, columnspan=3, padx=10, pady=10)
+# Function to validate that input is a whole number
+def validate_whole_number(P):
+    if P.isdigit() or P == "":
+        return True
+    return False
+
+
+vcmd = (scrollable_frame.register(validate_whole_number), '%P')
+
+num_runs_entry = tk.Entry(scrollable_frame, width=10, validate="key", validatecommand=vcmd)
+num_runs_entry.grid(row=4, column=1)
+
+# Button to train and test the selected classifiers
+submit_button = tk.Button(scrollable_frame, text="Train and Test", command=train_and_test)
+submit_button.grid(row=5, column=1)
+
+# Output text area
+output_text = ScrolledText(scrollable_frame, height=10, width=100)
+output_text.grid(row=6, column=0, columnspan=3, padx=10, pady=10)
 output_text.config(state=tk.DISABLED)
 
-graph_frame = tk.Frame(result_display_frame)
-graph_frame.grid(row=1, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
+# Creating a frame to hold the graph
+graph_frame = tk.Frame(scrollable_frame)
+graph_frame.grid(row=7, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
 
-tree = ttk.Treeview(result_display_frame, columns=("Run", "Classifier", "Accuracy", "F1 Score"), show="headings")
+# Creating a treeview widget to display accuracy and F1 score results
+tree = ttk.Treeview(scrollable_frame, columns=("Run", "Classifier", "Accuracy", "F1 Score"), show="headings")
 tree.heading("Run", text="Run")
 tree.heading("Classifier", text="Classifier")
 tree.heading("Accuracy", text="Accuracy")
 tree.heading("F1 Score", text="F1 Score")
-tree.grid(row=2, column=0, columnspan=4, padx=10, pady=10)
+tree.grid(row=8, column=0, columnspan=4, padx=10, pady=10)
 
-# Start the Tkinter event loop
 root.mainloop()

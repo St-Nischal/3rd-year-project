@@ -7,57 +7,59 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import importlib.util
+import seaborn as sns
 import tensorflow as tf
 
 from aeon.classification.convolution_based import RocketClassifier
 from aeon.classification.hybrid import HIVECOTEV2
 from aeon.classification.distance_based import KNeighborsTimeSeriesClassifier
 from aeon.classification.feature_based import Catch22Classifier, FreshPRINCEClassifier
-<<<<<<< HEAD
-from aeon.classification.deep_learning import CNNClassifier
-=======
 from aeon.transformations.collection.feature_based import Catch22
 from aeon.classification.deep_learning import CNNClassifier
 from aeon.classification.dictionary_based import ContractableBOSS
 from aeon.classification.interval_based import TimeSeriesForestClassifier
->>>>>>> origin/main
 from aeon.datasets import load_from_tsfile
 from aeon.benchmarking import experiments
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, precision_score
+from sklearn.metrics import accuracy_score, f1_score, balanced_accuracy_score, precision_score,  confusion_matrix
 
 warnings.filterwarnings("ignore")
-
-
-class CustomCNNClassifier(CNNClassifier):
-    def _fit(self, X, y):
-        # Override the _fit method to set the correct file path for ModelCheckpoint
-        self.checkpoint_filepath = "checkpoint.weights.h5"  # Use the correct extension
-        checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-            filepath=self.checkpoint_filepath,
-            save_weights_only=True,
-            monitor='val_accuracy',
-            mode='max',
-            save_best_only=True)
-        self.callbacks = [checkpoint_callback]
-        super()._fit(X, y)
 
 def validate_inputs():
     if not train_data_entry.get():
         update_output("Error: Please select a training data file.")
         return False
+    if not train_data_entry.get().endswith(".ts"):
+        update_output("Error: Training data file must end with '.ts'.")
+        return False
     if not test_data_entry.get():
         update_output("Error: Please select a testing data file.")
         return False
-    if not num_runs_entry.get().isdigit():
-        update_output("Error: Number of runs must be a positive integer.")
+    if not test_data_entry.get().endswith(".ts"):
+        update_output("Error: Testing data file must end with '.ts'.")
+        return False
+    if not num_runs_entry.get().isdigit() or int(num_runs_entry.get()) <= 0:
+        update_output("Error: Number of runs must be a positive integer greater than 0.")
+        return False
+    if custom_classifier_entry.get() and not custom_classifier_entry.get().endswith(".py"):
+        update_output("Error: Custom classifier file must end with '.py'.")
+        return False
+    if len(classifiers_listbox.curselection()) == 0:
+        update_output("Error: Please select at least one classifier.")
         return False
     return True
+
 
 # Function to update the text widget with classifier output
 def update_output(text):
     output_text.config(state=tk.NORMAL)
     output_text.insert(tk.END, text + "\n")
+    output_text.config(state=tk.DISABLED)
+
+# Function to clear the output text widget
+def clear_output():
+    output_text.config(state=tk.NORMAL)
+    output_text.delete(1.0, tk.END)
     output_text.config(state=tk.DISABLED)
 
 # Function to handle file submission for training data
@@ -86,6 +88,7 @@ def submit_custom_classifier():
     custom_classifier_entry.insert(0, custom_classifier_filename)
 
 def train_and_test():
+    clear_output()
     if not validate_inputs():
         return
     train_filename = train_data_entry.get()
@@ -175,18 +178,6 @@ def train_and_test():
                 balanced_accuracy = balanced_accuracy_score(test_labels, fp_preds)
                 f1 = f1_score(test_labels, fp_preds, average='macro')
                 precision = precision_score(test_labels, fp_preds, average='macro')
-<<<<<<< HEAD
-=======
-
-            elif classifier_name == "CNN":
-                cnn = CustomCNNClassifier()
-                cnn.fit(train_data, train_labels)
-                y_predict = cnn.predict(test_data)
-                accuracy = accuracy_score(test_labels, y_predict)
-                balanced_accuracy = balanced_accuracy_score(test_labels, y_predict)
-                f1 = f1_score(test_labels, y_predict, average='macro')
-                precision = precision_score(test_labels, y_predict, average='macro')
->>>>>>> origin/main
 
             elif classifier_name == "CBoss":
                 cboss = ContractableBOSS(n_parameter_samples=250, max_ensemble_size=50, random_state=47)
@@ -243,32 +234,58 @@ def train_and_test():
         )
 
     # Plotting the graph
-    plot_graph(avg_accuracy, avg_balanced_accuracy)
+    plot_graph(avg_accuracy, avg_balanced_accuracy, num_runs)
     
-def plot_graph(avg_accuracy, avg_balanced_accuracy):
+def plot_graph(avg_accuracy, avg_balanced_accuracy, num_runs):
     # Clearing the previous graph, when same window used to run again
     for widget in graph_frame.winfo_children():
         widget.destroy()
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+    if num_runs == 1:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
-    # Ploting normal accuracy
-    for classifier_name, accuracies in avg_accuracy.items():
-        ax1.plot(range(1, len(accuracies) + 1), accuracies, label=classifier_name)
-    ax1.set_title("Accuracy of Classifiers Across Runs")
-    ax1.set_xlabel("Run")
-    ax1.set_ylabel("Accuracy")
-    ax1.legend()
-    ax1.grid(True)
+        # Getting a colormap
+        cmap = plt.get_cmap("tab10")
+        classifier_names = list(avg_accuracy.keys())
+        colors = [cmap(i) for i in range(len(classifier_names))]
 
-    # Ploting balanced accuracy
-    for classifier_name, bal_accuracies in avg_balanced_accuracy.items():
-        ax2.plot(range(1, len(bal_accuracies) + 1), bal_accuracies, label=classifier_name)
-    ax2.set_title("Balanced Accuracy of Classifiers Across Runs")
-    ax2.set_xlabel("Run")
-    ax2.set_ylabel("Balanced Accuracy")
-    ax2.legend()
-    ax2.grid(True)
+        # Plotting bar chart for single run accuracy
+        ax1 = axes[0]
+        accuracies = [avg_accuracy[classifier_name][0] for classifier_name in classifier_names]
+        ax1.bar(classifier_names, accuracies, color=colors)
+        ax1.set_title("Accuracy of Classifiers for Single Run")
+        ax1.set_ylabel("Accuracy")
+        ax1.set_xticklabels(classifier_names, rotation=45, ha="right")
+        ax1.grid(True)
+
+        # Plotting bar chart for single run balanced accuracy
+        ax2 = axes[1]
+        bal_accuracies = [avg_balanced_accuracy[classifier_name][0] for classifier_name in classifier_names]
+        ax2.bar(classifier_names, bal_accuracies, color=colors)
+        ax2.set_title("Balanced Accuracy of Classifiers for Single Run")
+        ax2.set_ylabel("Balanced Accuracy")
+        ax2.set_xticklabels(classifier_names, rotation=45, ha="right")
+        ax2.grid(True)
+    else:
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+        # Plotting normal accuracy
+        for classifier_name, accuracies in avg_accuracy.items():
+            ax1.plot(range(1, len(accuracies) + 1), accuracies, label=classifier_name)
+        ax1.set_title("Accuracy of Classifiers Across Runs")
+        ax1.set_xlabel("Run")
+        ax1.set_ylabel("Accuracy")
+        ax1.legend()
+        ax1.grid(True)
+
+        # Plotting balanced accuracy
+        for classifier_name, bal_accuracies in avg_balanced_accuracy.items():
+            ax2.plot(range(1, len(bal_accuracies) + 1), bal_accuracies, label=classifier_name)
+        ax2.set_title("Balanced Accuracy of Classifiers Across Runs")
+        ax2.set_xlabel("Run")
+        ax2.set_ylabel("Balanced Accuracy")
+        ax2.legend()
+        ax2.grid(True)
 
     fig.tight_layout()
 
@@ -332,21 +349,24 @@ custom_classifier_button = tk.Button(scrollable_frame, text="Browse", command=su
 custom_classifier_button.grid(row=2, column=2)
 
 # Classifier selection listbox
-<<<<<<< HEAD
-classifiers = ["Random Forest", "Rocket", "Hivecotev2", "Elastic Ensemble", "Fresh Prince","CNN", "Custom"]
-=======
 classifiers = ["Random Forest", "Rocket", "Hivecotev2", "Elastic Ensemble", "Fresh Prince","CNN","CBoss","Time Series Forest", "Custom"]
->>>>>>> origin/main
 classifiers_listbox = tk.Listbox(scrollable_frame, selectmode=tk.MULTIPLE, height=len(classifiers))
 for classifier in classifiers:
     classifiers_listbox.insert(tk.END, classifier)
 classifiers_listbox.grid(row=3, column=0, columnspan=3)
 
-# Number of runs entry field
 num_runs_label = tk.Label(scrollable_frame, text="Number of Runs:")
 num_runs_label.grid(row=4, column=0)
 
-num_runs_entry = tk.Entry(scrollable_frame, width=10)
+# Function to validate that input is a whole number
+def validate_whole_number(P):
+    if P.isdigit() or P == "":
+        return True
+    return False
+
+vcmd = (scrollable_frame.register(validate_whole_number), '%P')
+
+num_runs_entry = tk.Entry(scrollable_frame, width=10, validate="key", validatecommand=vcmd)
 num_runs_entry.grid(row=4, column=1)
 
 # Button to train and test the selected classifiers

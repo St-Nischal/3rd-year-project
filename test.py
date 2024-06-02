@@ -1,9 +1,6 @@
 from sklearn.ensemble import RandomForestClassifier
-
-
 def setup():
     return custom_classifier()
-
 class custom_classifier:
     def __init__(self):
         self.classifier = RandomForestClassifier(n_estimators=100)
