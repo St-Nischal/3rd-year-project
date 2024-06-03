@@ -230,7 +230,7 @@ def train_and_test():
             f"Average Accuracy: {avg_acc:.2f} (Std Dev: {std_acc:.2f}), "
             f"Average Balanced Accuracy: {avg_bal_acc:.2f} (Std Dev: {std_bal_acc:.2f}), "
             f"Average F1 Score: {avg_f1:.2f} (Std Dev: {std_f1:.2f}), "
-            f"Average Precision: {avg_prec:.2f} (Std Dev: {std_prec:.2f})"
+            f"Average Precision: {avg_prec:.2f} (Std Dev: {std_prec:.2f})\n"
         )
 
     # Plotting the graph
@@ -296,7 +296,7 @@ def plot_graph(avg_accuracy, avg_balanced_accuracy, num_runs):
 # Createing main Tkinter window
 root = tk.Tk()
 root.title("Multiple Classifier Selection")
-root.geometry("900x1200")
+root.geometry("1050x1200")
 
 # Createing a canvas widget and attach a scrollbar
 canvas = tk.Canvas(root)
@@ -322,7 +322,7 @@ canvas.pack(side="left", fill="both", expand=True)
 train_data_label = tk.Label(scrollable_frame, text="Select Training Data:")
 train_data_label.grid(row=0, column=0)
 
-train_data_entry = tk.Entry(scrollable_frame, width=50)
+train_data_entry = tk.Entry(scrollable_frame, width=70)
 train_data_entry.grid(row=0, column=1)
 
 train_data_button = tk.Button(scrollable_frame, text="Browse", command=submit_train_data)
@@ -332,7 +332,7 @@ train_data_button.grid(row=0, column=2)
 test_data_label = tk.Label(scrollable_frame, text="Select Testing Data:")
 test_data_label.grid(row=1, column=0)
 
-test_data_entry = tk.Entry(scrollable_frame, width=50)
+test_data_entry = tk.Entry(scrollable_frame, width=70)
 test_data_entry.grid(row=1, column=1)
 
 test_data_button = tk.Button(scrollable_frame, text="Browse", command=submit_test_data)
@@ -342,7 +342,7 @@ test_data_button.grid(row=1, column=2)
 custom_classifier_label = tk.Label(scrollable_frame, text="Select Custom Classifier File:")
 custom_classifier_label.grid(row=2, column=0)
 
-custom_classifier_entry = tk.Entry(scrollable_frame, width=50)
+custom_classifier_entry = tk.Entry(scrollable_frame, width=70)
 custom_classifier_entry.grid(row=2, column=1)
 
 custom_classifier_button = tk.Button(scrollable_frame, text="Browse", command=submit_custom_classifier)
@@ -374,7 +374,7 @@ submit_button = tk.Button(scrollable_frame, text="Train and Test", command=train
 submit_button.grid(row=5, column=1)
 
 # Output text area
-output_text = ScrolledText(scrollable_frame, height=10, width=100)
+output_text = ScrolledText(scrollable_frame, height=10, width=120)
 output_text.grid(row=6, column=0, columnspan=3, padx=10, pady=10)
 output_text.config(state=tk.DISABLED)
 
