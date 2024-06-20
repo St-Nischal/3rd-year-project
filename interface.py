@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 import importlib.util
-import seaborn as sns
 import tensorflow as tf
 
 from aeon.classification.convolution_based import RocketClassifier
@@ -38,14 +37,14 @@ def validate_inputs():
     if not test_data_entry.get().endswith(".ts"):
         update_output("Error: Testing data file must end with '.ts'.")
         return False
-    if not num_runs_entry.get().isdigit() or int(num_runs_entry.get()) <= 0:
-        update_output("Error: Number of runs must be a positive integer greater than 0.")
-        return False
     if custom_classifier_entry.get() and not custom_classifier_entry.get().endswith(".py"):
         update_output("Error: Custom classifier file must end with '.py'.")
         return False
     if len(classifiers_listbox.curselection()) == 0:
         update_output("Error: Please select at least one classifier.")
+        return False
+    if not num_runs_entry.get().isdigit() or int(num_runs_entry.get()) <= 0:
+        update_output("Error: Number of runs must be a positive integer greater than 0.")
         return False
     return True
 
