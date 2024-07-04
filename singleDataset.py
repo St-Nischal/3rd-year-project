@@ -5,8 +5,8 @@ class ClassifierSelectionApp:
     def __init__(self, root):
         self.root = root
         style = ttk.Style()
-        style.configure("TButton", font=("Arial", 10), padding=5)
-        style.configure("TLabel", font=("Arial", 12))
+        style.configure("TButton", font=("Arial", 11), padding=5)
+        style.configure("TLabel", font=("Arial", 11))
 
         # Main frame
         main_frame = ttk.Frame(root, padding="10 10 10 10")
@@ -32,30 +32,37 @@ class ClassifierSelectionApp:
 
         # Category Labels
         categories = ["Convolution based", "Deep learning", "Dictionary based", 
-                      "Distance based", "Feature based", "Interval based", 
-                      "Shapelet based", "Hybrid"]
-
+                    "Distance based", "Feature based", "Interval based", 
+                    "Shapelet based", "Hybrid"]
         for i, category in enumerate(categories):
-            label = ttk.Label(main_frame, text=category, font=("Arial", 10, "bold"))
-            label.grid(row=2, column=i, padx=5, pady=5)
+            label = ttk.Label(main_frame, text=category, font=("Arial", 11, "bold"))
+            label.grid(row=2, column=i, padx=5, pady=5, sticky='w')  # Align to the left
 
         # Row Labels and Checkbuttons
         self.check_vars = []
         rows = [
-            ["Row e.g", "Row 1-2", "Row 1-3", "Row 1-4", "Row 1-5", "Row 1-6", "Row 1-7", "Row 1-8"],
-            ["Row 2-1", "Row 2-2", "Row 2-3", "Row 2-4", "Row 2-5", "Row 2-6", "Row 2-7", "Row 2-8"],
-            ["Row 3-1", "Row 3-2", "Row 3-3", "Row 3-4", "Row 3-5", "Row 3-6", "Row 3-7", "Row 3-8"]
+            ["Rocket Classifier", "CNN ", "MUSE", "K-NN", "Catch22", "Canonical Interval Forest", "Random Forest", "HIVECOTEV2"],
+            ["Arsenal", "", "WEASEL", "Elastic Ensemble", "Fresh PRINCE", "DrCIF", "", ""],
+            ["", "", "BOSS Ensemble", "", "", "RandomIntervalSpectralEnsemble", "", ""],
+            ["", "", "Contractable BOSS", "", "", "SupervisedTimeSeriesForest", "", ""],
+            ["", "", "Individual BOSS", "", "", "TimeSeriesForestClassifier", "", ""],
+            ["", "", "Temporal Dictionary Ensemble", "", "", "", "", ""]
         ]
+
+        # Determine the maximum width for each column
+        max_widths = [max(len(row[i]) for row in rows if i < len(row) and row[i]) for i in range(len(categories))]
 
         for r, row in enumerate(rows):
             row_vars = []
             for c, item in enumerate(row):
-                var = tk.BooleanVar()
-                checkbutton = ttk.Checkbutton(main_frame, text=item, variable=var)
-                checkbutton.grid(row=r+3, column=c, padx=5, pady=5)
-                row_vars.append(var)
+                if item:
+                    var = tk.BooleanVar()
+                    checkbutton = ttk.Checkbutton(main_frame, text=item, variable=var, width=max_widths[c])
+                    checkbutton.grid(row=r+3, column=c, padx=5, pady=5, sticky='w')  # Align to the left
+                    row_vars.append(var)
+                else:
+                    row_vars.append(None)
             self.check_vars.append(row_vars)
-
     def browse_train(self):
         file_path = filedialog.askopenfilename()
         print(f"Training data selected: {file_path}")

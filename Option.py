@@ -26,7 +26,7 @@ class OptionSelectorApp:
         style.configure("Custom.TRadiobutton", font=self.custom_font)
 
         # Label for the initial choice
-        ttk.Label(self.choice_frame, text="Would you like to test your classifier or dataset?", font=("Arial", 25)).grid(row=0, column=0, columnspan=2, sticky='w')
+        ttk.Label(self.choice_frame, text="Would you like to test your classifier or dataset?", font=("Arial", 20)).grid(row=0, column=0, columnspan=2, sticky='w')
 
         # Radio buttons for the initial choice
         ttk.Radiobutton(self.choice_frame, text="Dataset", variable=self.choice_var, value="Dataset", command=self.display_options, style="Custom.TRadiobutton").grid(row=1, column=0, sticky='w', pady=10)
