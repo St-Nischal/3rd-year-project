@@ -13,9 +13,9 @@ class ClassifierSelectionApp:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Configure grid
-        for i in range(8):
+        for i in range(8):  # Number of columns
             main_frame.columnconfigure(i, weight=1)
-        for i in range(6):
+        for i in range(8):  # Increased number of rows
             main_frame.rowconfigure(i, weight=1)
 
         # Training Data
@@ -32,27 +32,30 @@ class ClassifierSelectionApp:
 
         # Category Labels
         categories = ["Convolution based", "Deep learning", "Dictionary based", 
-                    "Distance based", "Feature based", "Interval based", 
-                    "Shapelet based", "Hybrid"]
+                      "Distance based", "Feature based", "Interval based", 
+                      "Shapelet based", "Hybrid"]
         for i, category in enumerate(categories):
             label = ttk.Label(main_frame, text=category, font=("Arial", 11, "bold"))
             label.grid(row=2, column=i, padx=5, pady=5, sticky='w')  # Align to the left
 
         # Row Labels and Checkbuttons
         self.check_vars = []
-        rows = [
+        rows_top = [
             ["Rocket Classifier", "CNN ", "MUSE", "K-NN", "Catch22", "Canonical Interval Forest", "Random Forest", "HIVECOTEV2"],
             ["Arsenal", "", "WEASEL", "Elastic Ensemble", "Fresh PRINCE", "DrCIF", "", ""],
-            ["", "", "BOSS Ensemble", "", "", "RandomIntervalSpectralEnsemble", "", ""],
+            ["", "", "BOSS Ensemble", "", "", "RandomIntervalSpectralEnsemble", "", ""]
+        ]
+        rows_bottom = [
             ["", "", "Contractable BOSS", "", "", "SupervisedTimeSeriesForest", "", ""],
             ["", "", "Individual BOSS", "", "", "TimeSeriesForestClassifier", "", ""],
             ["", "", "Temporal Dictionary Ensemble", "", "", "", "", ""]
         ]
 
         # Determine the maximum width for each column
-        max_widths = [max(len(row[i]) for row in rows if i < len(row) and row[i]) for i in range(len(categories))]
+        max_widths = [max(len(row[i]) for row in rows_top + rows_bottom if i < len(row) and row[i]) for i in range(len(categories))]
 
-        for r, row in enumerate(rows):
+        # Place the top half of the rows in the grid
+        for r, row in enumerate(rows_top):
             row_vars = []
             for c, item in enumerate(row):
                 if item:
@@ -63,6 +66,20 @@ class ClassifierSelectionApp:
                 else:
                     row_vars.append(None)
             self.check_vars.append(row_vars)
+
+        # Place the bottom half of the rows in the grid, offset by the number of rows in rows_top
+        for r, row in enumerate(rows_bottom):
+            row_vars = []
+            for c, item in enumerate(row):
+                if item:
+                    var = tk.BooleanVar()
+                    checkbutton = ttk.Checkbutton(main_frame, text=item, variable=var, width=max_widths[c])
+                    checkbutton.grid(row=r+3+len(rows_top), column=c, padx=5, pady=5, sticky='w')  # Align to the left
+                    row_vars.append(var)
+                else:
+                    row_vars.append(None)
+            self.check_vars.append(row_vars)
+
     def browse_train(self):
         file_path = filedialog.askopenfilename()
         print(f"Training data selected: {file_path}")
