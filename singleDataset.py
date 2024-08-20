@@ -13,9 +13,9 @@ class ClassifierSelectionApp:
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # Configure grid
-        for i in range(8):  # Number of columns
+        for i in range(8):
             main_frame.columnconfigure(i, weight=1)
-        for i in range(8):  # Increased number of rows
+        for i in range(6):
             main_frame.rowconfigure(i, weight=1)
 
         # Training Data
@@ -32,8 +32,8 @@ class ClassifierSelectionApp:
 
         # Category Labels
         categories = ["Convolution based", "Deep learning", "Dictionary based", 
-                      "Distance based", "Feature based", "Interval based", 
-                      "Shapelet based", "Hybrid"]
+                    "Distance based", "Feature based", "Interval based", 
+                    "Shapelet based", "Hybrid"]
         for i, category in enumerate(categories):
             label = ttk.Label(main_frame, text=category, font=("Arial", 11, "bold"))
             label.grid(row=2, column=i, padx=5, pady=5, sticky='w')  # Align to the left
@@ -67,7 +67,7 @@ class ClassifierSelectionApp:
                     row_vars.append(None)
             self.check_vars.append(row_vars)
 
-        # Place the bottom half of the rows in the grid, offset by the number of rows in rows_top
+        # Place the bottom half of the rows in the grid
         for r, row in enumerate(rows_bottom):
             row_vars = []
             for c, item in enumerate(row):
@@ -79,7 +79,6 @@ class ClassifierSelectionApp:
                 else:
                     row_vars.append(None)
             self.check_vars.append(row_vars)
-
     def browse_train(self):
         file_path = filedialog.askopenfilename()
         print(f"Training data selected: {file_path}")
