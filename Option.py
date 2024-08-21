@@ -7,7 +7,7 @@ class OptionSelectorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Option Selector")
-        root.geometry("1000x800")
+        root.geometry("850x750")
         
         # Variables to hold user selections
         self.choice_var = tk.StringVar(value="Dataset")
@@ -46,10 +46,13 @@ class OptionSelectorApp:
         
         # Check which option is selected and display corresponding options
         if self.choice_var.get() == 'Classifier':
+
             tk.Label(self.options_frame, text="Select Dataset Option:").grid(row=0, column=0, sticky='w')
             tk.Radiobutton(self.options_frame, text="Option 1", variable=self.dataset_option_var, value="Option 1").grid(row=1, column=0)
         elif self.choice_var.get() == 'Dataset':
+
             # Instantiate the ClassifierSelectionApp within the options frame
+            # To create custom classifiers
             self.classifier_app = ClassifierSelectionApp(self.options_frame)
         
         self.validate_button = tk.Button(self.root, text="Train Test", command=self.validate_inputs)

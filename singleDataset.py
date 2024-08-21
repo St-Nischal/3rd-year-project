@@ -12,73 +12,59 @@ class ClassifierSelectionApp:
         main_frame = ttk.Frame(root, padding="10 10 10 10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Configure grid
-        for i in range(8):
-            main_frame.columnconfigure(i, weight=1)
-        for i in range(6):
-            main_frame.rowconfigure(i, weight=1)
-
-        # Training Data
+       # Training Data
         self.label_train = ttk.Label(main_frame, text="Select Training Data:", style="TLabel")
         self.label_train.grid(row=0, column=0, sticky='w', padx=5, pady=5)
+
+        # Correct the parent of train_data_entry to main_frame
+        self.train_data_entry = tk.Entry(main_frame, width=25)
+        self.train_data_entry.grid(row=1, column=0)
+
         self.button_train = ttk.Button(main_frame, text="Browse", command=self.browse_train, style="TButton")
-        self.button_train.grid(row=1, column=0, padx=5, pady=5)
+        self.button_train.grid(row=2, column=0, padx=5, pady=5, sticky='w')
 
         # Testing Data
         self.label_test = ttk.Label(main_frame, text="Select Testing Data:", style="TLabel")
         self.label_test.grid(row=0, column=1, sticky='w', padx=5, pady=5)
+
+        # Correct the parent of train_data_entry to main_frame
+        self.train_data_entry = tk.Entry(main_frame, width=25)
+        self.train_data_entry.grid(row=1, column=1)
+
         self.button_test = ttk.Button(main_frame, text="Browse", command=self.browse_test, style="TButton")
-        self.button_test.grid(row=1, column=1, padx=5, pady=5)
+        self.button_test.grid(row=2, column=1, padx=5, pady=5, sticky='w')
 
-        # Category Labels
-        categories = ["Convolution based", "Deep learning", "Dictionary based", 
-                    "Distance based", "Feature based", "Interval based", 
-                    "Shapelet based", "Hybrid"]
-        for i, category in enumerate(categories):
-            label = ttk.Label(main_frame, text=category, font=("Arial", 11, "bold"))
-            label.grid(row=2, column=i, padx=5, pady=5, sticky='w')  # Align to the left
+        # Category frame
+        category_frame = ttk.Frame(root)
+        category_frame.grid(row=1, column=0)
 
-        # Row Labels and Checkbuttons
-        self.check_vars = []
-        rows_top = [
-            ["Rocket Classifier", "CNN ", "MUSE", "K-NN", "Catch22", "Canonical Interval Forest", "Random Forest", "HIVECOTEV2"],
-            ["Arsenal", "", "WEASEL", "Elastic Ensemble", "Fresh PRINCE", "DrCIF", "", ""],
-            ["", "", "BOSS Ensemble", "", "", "RandomIntervalSpectralEnsemble", "", ""]
-        ]
-        rows_bottom = [
-            ["", "", "Contractable BOSS", "", "", "SupervisedTimeSeriesForest", "", ""],
-            ["", "", "Individual BOSS", "", "", "TimeSeriesForestClassifier", "", ""],
-            ["", "", "Temporal Dictionary Ensemble", "", "", "", "", ""]
-        ]
+        # better use a dictionary to store the category data
+        categories = {
+            "Convolution based": ["RocketClassifier", "ArsenalClassifier"],
+            "Shapelet based": ["MrSQMClassifier", "RDSTClassifier", "SASTClassifier"],
+            "Dictionary based": ["MUSE", "WEASEL", "BOSS Ensemble", "Contractable BOSS", "Temporal Dictionary Ensemble"],
+            "Interval based": ["CIFClassifier", "DrCIFClassifier", "RISEClassifier", "STSFClassifier", "TSFClassifier"],
+            "Feature based": ["Catch22Classifier", "FreshPRINCEClassifier"],
+            "Distance based": ["K-NNClassifier", "Elastic Ensemble"],
+            "Deep learning": ["CNNClassifier"],
+            "Hybrid": ["HIVECOTEV2Classifier"],
+        }
+        # calculate number of columns for two rows
+        columns = int(len(categories) / 2 + 0.5)
+        self.check_vars = {}
+        for i, (category, items) in enumerate(categories.items()):
+            self.check_vars[category] = []
+            # determine the row and column
+            row, col = divmod(i, columns)
+            # create a frame for this category
+            frame = ttk.Frame(category_frame)
+            frame.grid(row=row, column=col, sticky='nsew', padx=5, pady=5)
+            ttk.Label(frame, text=category, font=('Arial', 11, 'bold')).pack(padx=5, pady=5, anchor='w')
+            for item in items:
+                var = tk.BooleanVar()
+                ttk.Checkbutton(frame, text=item, variable=var).pack(anchor='w', padx=5, pady=5)
+                self.check_vars[category].append(var)
 
-        # Determine the maximum width for each column
-        max_widths = [max(len(row[i]) for row in rows_top + rows_bottom if i < len(row) and row[i]) for i in range(len(categories))]
-
-        # Place the top half of the rows in the grid
-        for r, row in enumerate(rows_top):
-            row_vars = []
-            for c, item in enumerate(row):
-                if item:
-                    var = tk.BooleanVar()
-                    checkbutton = ttk.Checkbutton(main_frame, text=item, variable=var, width=max_widths[c])
-                    checkbutton.grid(row=r+3, column=c, padx=5, pady=5, sticky='w')  # Align to the left
-                    row_vars.append(var)
-                else:
-                    row_vars.append(None)
-            self.check_vars.append(row_vars)
-
-        # Place the bottom half of the rows in the grid
-        for r, row in enumerate(rows_bottom):
-            row_vars = []
-            for c, item in enumerate(row):
-                if item:
-                    var = tk.BooleanVar()
-                    checkbutton = ttk.Checkbutton(main_frame, text=item, variable=var, width=max_widths[c])
-                    checkbutton.grid(row=r+3+len(rows_top), column=c, padx=5, pady=5, sticky='w')  # Align to the left
-                    row_vars.append(var)
-                else:
-                    row_vars.append(None)
-            self.check_vars.append(row_vars)
     def browse_train(self):
         file_path = filedialog.askopenfilename()
         print(f"Training data selected: {file_path}")
@@ -86,6 +72,18 @@ class ClassifierSelectionApp:
     def browse_test(self):
         file_path = filedialog.askopenfilename()
         print(f"Testing data selected: {file_path}")
+
+    # Function to handle file submission for training data
+    def submit_train_data(self):
+        train_filename = filedialog.askopenfilename(title="Select Training Data File")
+        self.train_data_entry.delete(0, tk.END)
+        self.train_data_entry.insert(0, train_filename)
+
+    # Function to handle file submission for testing data
+    def submit_test_data(self):
+        test_filename = filedialog.askopenfilename(title="Select Testing Data File")
+        self.test_data_entry.delete(0, tk.END)
+        self.test_data_entry.insert(0, test_filename)
 
 if __name__ == "__main__":
     root = tk.Tk()
