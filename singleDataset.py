@@ -16,7 +16,7 @@ class ClassifierSelectionApp:
         self.label_train = ttk.Label(main_frame, text="Select Training Data:", style="TLabel")
         self.label_train.grid(row=0, column=0, sticky='w', padx=5, pady=5)
 
-        # Correct the parent of train_data_entry to main_frame
+        # Displaying the location of the training data
         self.train_data_entry = tk.Entry(main_frame, width=25)
         self.train_data_entry.grid(row=1, column=0)
 
@@ -27,9 +27,9 @@ class ClassifierSelectionApp:
         self.label_test = ttk.Label(main_frame, text="Select Testing Data:", style="TLabel")
         self.label_test.grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
-        # Correct the parent of train_data_entry to main_frame
-        self.train_data_entry = tk.Entry(main_frame, width=25)
-        self.train_data_entry.grid(row=1, column=1)
+        # Displaying the location of the testing data
+        self.test_data_entry = tk.Entry(main_frame, width=25)
+        self.test_data_entry.grid(row=1, column=1)
 
         self.button_test = ttk.Button(main_frame, text="Browse", command=self.browse_test, style="TButton")
         self.button_test.grid(row=2, column=1, padx=5, pady=5, sticky='w')
@@ -65,13 +65,18 @@ class ClassifierSelectionApp:
                 ttk.Checkbutton(frame, text=item, variable=var).pack(anchor='w', padx=5, pady=5)
                 self.check_vars[category].append(var)
 
+    #Function for displaying the location of the data in computer
     def browse_train(self):
         file_path = filedialog.askopenfilename()
         print(f"Training data selected: {file_path}")
-        
+        self.train_data_entry.delete(0, tk.END)
+        self.train_data_entry.insert(0, file_path)
+
     def browse_test(self):
         file_path = filedialog.askopenfilename()
         print(f"Testing data selected: {file_path}")
+        self.test_data_entry.delete(0, tk.END)
+        self.test_data_entry.insert(0, file_path)
 
     # Function to handle file submission for training data
     def submit_train_data(self):
