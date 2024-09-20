@@ -54,14 +54,16 @@ class OptionSelectorApp:
             # Instantiate the ClassifierSelectionApp within the options frame
             # To create custom classifiers
             self.classifier_app = ClassifierSelectionApp(self.options_frame)
-        
-        self.validate_button = tk.Button(self.root, text="Train Test", command=self.validate_inputs)
-        self.validate_button.grid(row=2, column=0, columnspan=2, padx=170, pady=10, sticky="we")
+            self.validate_button = tk.Button(self.root, text="Train Test", command=self.validate_inputs(self.classifier_app))
+            self.validate_button.grid(row=2, column=0, columnspan=2, padx=170, pady=10, sticky="we")
 
-    def validate_inputs(self):
-        # Assuming that `train_data_entry` and `test_data_entry` are defined somewhere in the real use case
-        train_file = self.train_data_entry.get()
-        test_file = self.test_data_entry.get()
+    def validate_inputs(self, classifierSelection):
+        # Getting `train_data_entry` and `test_data_entry` from singleDataset.py
+        train_file = classifierSelection.train_data_entry.get()
+        test_file = classifierSelection.test_data_entry.get()
+        numRuns = classifierSelection.runEntry.get()
+        custom_classifier_file = classifierSelection.custom_classifier_entry.get()
+
         if not train_file:
             self.show_error("Error: Please select a training data file.")
             return False
@@ -74,10 +76,14 @@ class OptionSelectorApp:
         if not self.is_time_series(test_file):
             self.show_error("Error: Testing data file does not seem to contain valid time series data.")
             return False
-        custom_classifier_file = self.custom_classifier_entry.get()
+        
         if custom_classifier_file and not custom_classifier_file.endswith(".py"):
             self.show_error("Error: Custom classifier file must end with '.py'.")
             return False
+        
+        if not self.checkRuns(numRuns):
+            self.show_error("Error: The number of runs cannot be less than 1 or empty")
+
         return True
 
     def is_time_series(self, file_path):
@@ -101,6 +107,15 @@ class OptionSelectorApp:
         except Exception as e:
             print(f"Error reading file: {e}")
             return False
+    
+    def checkRuns(self, entry):
+        # Ensure that the value is not empty and that it contains only digits
+        if entry.isdigit():
+            if int(entry) > 0:  # Check if the number is positive
+                return True
+        elif entry == "":  # Allow empty value if user deletes all input (optional)
+            return True
+        return False
         
     def show_error(self, message):
         error_window = tk.Toplevel(self.root)
@@ -110,6 +125,7 @@ class OptionSelectorApp:
         error_label.pack()
         button = tk.Button(error_window, text="Close", command=error_window.destroy)
         button.pack()
+    
 
 if __name__ == "__main__":
     root = tk.Tk()

@@ -34,9 +34,34 @@ class ClassifierSelectionApp:
         self.button_test = ttk.Button(main_frame, text="Browse", command=self.browse_test, style="TButton")
         self.button_test.grid(row=2, column=1, padx=5, pady=5, sticky='w')
 
+
+        # Custom Classifier
+        self.label_test = ttk.Label(main_frame, text="Select Custom Classifier:", style="TLabel")
+        self.label_test.grid(row=0, column=2, sticky='w', padx=5, pady=5)
+
+        # Displaying the location of the custom classifier
+        self.custom_classifier_entry = tk.Entry(main_frame, width=25)
+        self.custom_classifier_entry.grid(row=1, column=2)
+
+        #Displaying the location of the custom classifier 
+        self.button_test = ttk.Button(main_frame, text="Browse", command=self.browse_custom, style="TButton")
+        self.button_test.grid(row=2, column=2, padx=5, pady=5, sticky='w')
+
+
+        # Label for number of runs
+        self.runLabel = ttk.Label(main_frame, text="Select Number of Runs:", style="TLabel")
+        self.runLabel.grid(row=3, column=0, sticky='w', padx=5, pady=30)
+
+        #Selecting number of runs
+        self.runEntry = tk.Entry(main_frame, width= 25)
+        self.runEntry.grid(row=3, column= 1)
+
+
         # Category frame
         category_frame = ttk.Frame(root)
         category_frame.grid(row=1, column=0)
+
+        
 
         # better use a dictionary to store the category data
         categories = {
@@ -48,6 +73,7 @@ class ClassifierSelectionApp:
             "Distance based": ["K-NNClassifier", "Elastic Ensemble"],
             "Deep learning": ["CNNClassifier"],
             "Hybrid": ["HIVECOTEV2Classifier"],
+            "Custom":["My Classifer"]
         }
         # calculate number of columns for two rows
         columns = int(len(categories) / 2 + 0.5)
@@ -78,17 +104,13 @@ class ClassifierSelectionApp:
         self.test_data_entry.delete(0, tk.END)
         self.test_data_entry.insert(0, file_path)
 
-    # Function to handle file submission for training data
-    def submit_train_data(self):
-        train_filename = filedialog.askopenfilename(title="Select Training Data File")
-        self.train_data_entry.delete(0, tk.END)
-        self.train_data_entry.insert(0, train_filename)
+    def browse_custom(self):
+        file_path = filedialog.askopenfilename()
+        print(f"Custom classifier selected: {file_path}")
+        self.custom_classifier_entry.delete(0, tk.END)
+        self.custom_classifier_entry.insert(0, file_path)
+      
 
-    # Function to handle file submission for testing data
-    def submit_test_data(self):
-        test_filename = filedialog.askopenfilename(title="Select Testing Data File")
-        self.test_data_entry.delete(0, tk.END)
-        self.test_data_entry.insert(0, test_filename)
 
 if __name__ == "__main__":
     root = tk.Tk()
