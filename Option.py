@@ -1,5 +1,7 @@
 import tkinter as tk
+from aeon.datasets import load_from_tsfile
 import pandas as pd
+import numpy as np
 from tkinter import ttk, font
 from singleDataset import ClassifierSelectionApp  # Import the other module
 
@@ -43,18 +45,16 @@ class OptionSelectorApp:
         # Clear existing widgets in the options frame
         for widget in self.options_frame.winfo_children():
             widget.destroy()
-        
+
         # Check which option is selected and display corresponding options
         if self.choice_var.get() == 'Classifier':
-
             tk.Label(self.options_frame, text="Select Dataset Option:").grid(row=0, column=0, sticky='w')
             tk.Radiobutton(self.options_frame, text="Option 1", variable=self.dataset_option_var, value="Option 1").grid(row=1, column=0)
         elif self.choice_var.get() == 'Dataset':
-
             # Instantiate the ClassifierSelectionApp within the options frame
-            # To create custom classifiers
             self.classifier_app = ClassifierSelectionApp(self.options_frame)
-            self.validate_button = tk.Button(self.root, text="Train Test", command=self.validate_inputs(self.classifier_app))
+            # Modify this line to pass a callable (lambda)
+            self.validate_button = tk.Button(self.root, text="Train Test", command=lambda: self.validate_inputs(self.classifier_app))
             self.validate_button.grid(row=2, column=0, columnspan=2, padx=170, pady=10, sticky="we")
 
     def validate_inputs(self, classifierSelection):
@@ -88,26 +88,28 @@ class OptionSelectorApp:
 
     def is_time_series(self, file_path):
         try:
-            df = pd.read_csv(file_path)
-            # Check if any column has datetime-like values
-            datetime_col = None
-            for col in df.columns:
-                try:
-                    pd.to_datetime(df[col])
-                    datetime_col = col
-                    break
-                except (ValueError, TypeError):
-                    continue
-            if datetime_col is None:
-                return False
-            # Check if the datetime column is sorted
-            if not df[datetime_col].is_monotonic_increasing:
-                return False
+            # Attempt to load the file using aeon's load_from_tsfile function
+            X, y = load_from_tsfile(file_path)
+            
+            # If we've reached this point without an exception, the file was successfully loaded as a time series
+            
+            # Additional checks can be performed if needed
+            if isinstance(X, pd.DataFrame):
+                # Check if there's at least one data point
+                if X.shape[0] < 1 or X.shape[1] < 1:
+                    return False
+                
+                # Check if the data is numerical
+                if not all(X.dtypes.apply(lambda x: np.issubdtype(x, np.number))):
+                    return False
+            
+            # If all checks pass, return True
             return True
+
         except Exception as e:
             print(f"Error reading file: {e}")
             return False
-    
+            
     def checkRuns(self, entry):
         # Ensure that the value is not empty and that it contains only digits
         if entry.isdigit():
